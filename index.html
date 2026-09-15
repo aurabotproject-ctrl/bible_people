@@ -184,7 +184,119 @@
   }
   h1 .amp{ color: var(--accent); transition: color .3s ease; }
 
-  /* day selector */
+  .panel-header{ cursor:pointer; user-select:none; -webkit-user-select:none; }
+  .panel-header:hover h1{ opacity:0.85; }
+  .panel-header .lock-hint{
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+    margin-top:6px;
+    font-size:10.5px;
+    font-weight:600;
+    color: var(--muted);
+    opacity:0.7;
+  }
+  .panel-header .lock-hint svg{ width:11px; height:11px; }
+
+  /* ===== modals ===== */
+  .modal-overlay{
+    position:fixed;
+    inset:0;
+    background: rgba(6,5,3,0.72);
+    backdrop-filter: blur(3px);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index: 1000;
+    padding: 20px;
+  }
+  .modal-overlay[hidden]{ display:none; }
+
+  .modal{
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 26px 24px;
+    width: min(380px, 100%);
+    max-height: 84vh;
+    overflow-y:auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .modal[hidden]{ display:none; }
+  .modal h3{
+    margin:0 0 6px;
+    font-family:'Anton','Poppins',sans-serif;
+    font-weight:400;
+    font-size:22px;
+    text-transform:uppercase;
+    color:var(--text);
+    letter-spacing:0.01em;
+  }
+  .modal p.modal-sub{
+    margin:0 0 18px;
+    font-size:13px;
+    color: var(--muted);
+  }
+  .modal input[type="password"]{
+    width:100%;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-family:'Poppins', sans-serif;
+    font-size: 15px;
+    padding: 13px 14px;
+    border-radius: 10px;
+    outline:none;
+    box-sizing:border-box;
+    transition: border-color .15s ease;
+  }
+  .modal input[type="password"]:focus-visible{ border-color: var(--accent); }
+  .modal-error{
+    margin: 10px 0 0;
+    font-size: 12.5px;
+    font-weight:600;
+    color: #e2574c;
+  }
+  .modal-error[hidden]{ display:none; }
+  .modal-actions{
+    display:flex;
+    gap:10px;
+    margin-top: 20px;
+  }
+  .modal-actions .btn{ flex:1; }
+
+  .admin-days-grid{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .admin-day-item{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 9px 10px;
+    font-size: 13px;
+    font-weight:600;
+    color: var(--text);
+    cursor:pointer;
+    transition: border-color .15s ease;
+  }
+  .admin-day-item:has(input:checked){ border-color: var(--accent); }
+  .admin-day-item input[type="checkbox"]{
+    width:16px; height:16px;
+    accent-color: var(--accent);
+    flex-shrink:0;
+    cursor:pointer;
+  }
+  .admin-day-item.locked-default{ opacity:0.6; }
+
+  /* locked-state select options render with a lock glyph via text content */
+
+
   .day-select{
     position:relative;
     margin: 20px 0 18px;
@@ -440,9 +552,13 @@
 
   <aside class="panel-col">
     <div class="panel-inner">
-      <div class="panel-header">
+      <div class="panel-header" id="titleTrigger" title="Click to manage day access">
         <p class="eyebrow">A daily challenge</p>
         <h1>Bible Person <span class="amp">of the Day</span></h1>
+        <span class="lock-hint">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+          Manage day access
+        </span>
       </div>
 
       <div class="day-select">
@@ -492,6 +608,28 @@
   </aside>
 </div>
 
+<div class="modal-overlay" id="modalOverlay" hidden>
+  <div class="modal" id="passwordModal">
+    <h3>Enter password</h3>
+    <p class="modal-sub">Enter the teacher password to manage which days are unlocked.</p>
+    <input type="password" id="passwordInput" placeholder="Password" autocomplete="off">
+    <p class="modal-error" id="passwordError" hidden>Incorrect password. Try again.</p>
+    <div class="modal-actions">
+      <button class="btn" id="passwordCancel">Cancel</button>
+      <button class="btn primary" id="passwordSubmit">Unlock</button>
+    </div>
+  </div>
+
+  <div class="modal" id="adminModal" hidden>
+    <h3>Manage day access</h3>
+    <p class="modal-sub">Check a day to unlock it in this browser. Day 1 is always available.</p>
+    <div class="admin-days-grid" id="adminDaysGrid"></div>
+    <div class="modal-actions">
+      <button class="btn primary" id="adminDone">Done</button>
+    </div>
+  </div>
+</div>
+
 <script src="data/entries-001.js"></script>
 <script src="data/entries-002.js"></script>
 <script>
@@ -538,12 +676,44 @@
   const segsPanel = buildSegs(progressPanel);
 
   // populate dropdown
-  ENTRIES.forEach((e, i) => {
-    const opt = document.createElement('option');
-    opt.value = i;
-    opt.textContent = 'Day ' + e.day;
-    daySelect.appendChild(opt);
-  });
+  const LOCK_KEY = 'bpotd_unlocked_days_v1';
+  const PASSWORD = 'JesusLovesMe3';
+
+  function loadUnlocked(){
+    try{
+      const raw = JSON.parse(localStorage.getItem(LOCK_KEY));
+      if(Array.isArray(raw)) return new Set(raw);
+    }catch(e){}
+    return new Set();
+  }
+  function saveUnlocked(){
+    try{ localStorage.setItem(LOCK_KEY, JSON.stringify(Array.from(unlockedDays))); }catch(e){}
+  }
+
+  const unlockedDays = loadUnlocked();
+  unlockedDays.add(1); // day 1 is always free
+
+  function refreshDayOptions(){
+    const currentDay = ENTRIES[dayIndex] ? ENTRIES[dayIndex].day : null;
+    daySelect.innerHTML = '';
+    ENTRIES.forEach((e, i) => {
+      const opt = document.createElement('option');
+      opt.value = i;
+      const unlocked = unlockedDays.has(e.day);
+      opt.textContent = (unlocked ? '' : '🔒 ') + 'Day ' + e.day;
+      opt.disabled = !unlocked;
+      daySelect.appendChild(opt);
+    });
+    // keep current selection if still unlocked, else fall back to day 1
+    if(currentDay !== null && unlockedDays.has(currentDay)){
+      daySelect.value = dayIndex;
+    } else {
+      const fallback = ENTRIES.findIndex(e => e.day === 1);
+      setDay(fallback >= 0 ? fallback : 0);
+    }
+  }
+
+  refreshDayOptions();
 
   function applyAccent(color){
     document.documentElement.style.setProperty('--accent', color);
@@ -645,6 +815,7 @@
   tapLeft.addEventListener('click', goPrev);
 
   document.addEventListener('keydown', e => {
+    if(!modalOverlay.hidden || e.target.tagName === 'INPUT') return;
     if(e.key === 'ArrowRight') goNext();
     if(e.key === 'ArrowLeft') goPrev();
   });
@@ -666,6 +837,92 @@
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(layoutFrame, 80);
+  });
+
+  // ===== lock / admin modal =====
+  const titleTrigger = document.getElementById('titleTrigger');
+  const modalOverlay = document.getElementById('modalOverlay');
+  const passwordModal = document.getElementById('passwordModal');
+  const adminModal = document.getElementById('adminModal');
+  const passwordInput = document.getElementById('passwordInput');
+  const passwordError = document.getElementById('passwordError');
+  const passwordSubmit = document.getElementById('passwordSubmit');
+  const passwordCancel = document.getElementById('passwordCancel');
+  const adminDaysGrid = document.getElementById('adminDaysGrid');
+  const adminDone = document.getElementById('adminDone');
+
+  function showOverlay(){ modalOverlay.hidden = false; }
+  function hideOverlay(){
+    modalOverlay.hidden = true;
+    passwordModal.hidden = false;
+    adminModal.hidden = true;
+    passwordInput.value = '';
+    passwordError.hidden = true;
+  }
+
+  function openPasswordPrompt(){
+    passwordModal.hidden = false;
+    adminModal.hidden = true;
+    passwordInput.value = '';
+    passwordError.hidden = true;
+    showOverlay();
+    setTimeout(() => passwordInput.focus(), 50);
+  }
+
+  function buildAdminGrid(){
+    adminDaysGrid.innerHTML = '';
+    ENTRIES.forEach(e => {
+      const label = document.createElement('label');
+      label.className = 'admin-day-item' + (e.day === 1 ? ' locked-default' : '');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = unlockedDays.has(e.day);
+      if(e.day === 1) cb.disabled = true; // always unlocked
+      cb.addEventListener('change', () => {
+        if(cb.checked){ unlockedDays.add(e.day); }
+        else { unlockedDays.delete(e.day); }
+        saveUnlocked();
+        refreshDayOptions();
+      });
+      const span = document.createElement('span');
+      span.textContent = 'Day ' + e.day;
+      label.appendChild(cb);
+      label.appendChild(span);
+      adminDaysGrid.appendChild(label);
+    });
+  }
+
+  function openAdminPanel(){
+    buildAdminGrid();
+    passwordModal.hidden = true;
+    adminModal.hidden = false;
+  }
+
+  titleTrigger.addEventListener('click', openPasswordPrompt);
+
+  passwordSubmit.addEventListener('click', () => {
+    if(passwordInput.value === PASSWORD){
+      openAdminPanel();
+    } else {
+      passwordError.hidden = false;
+      passwordInput.value = '';
+      passwordInput.focus();
+    }
+  });
+
+  passwordInput.addEventListener('keydown', e => {
+    if(e.key === 'Enter') passwordSubmit.click();
+  });
+
+  passwordCancel.addEventListener('click', hideOverlay);
+  adminDone.addEventListener('click', hideOverlay);
+
+  modalOverlay.addEventListener('click', e => {
+    if(e.target === modalOverlay) hideOverlay();
+  });
+
+  document.addEventListener('keydown', e => {
+    if(e.key === 'Escape' && !modalOverlay.hidden) hideOverlay();
   });
 
   setDay(0);
