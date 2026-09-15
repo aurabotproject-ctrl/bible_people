@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Bible Person of the Day</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0e0c09;
+    --surface: #16130f;
+    --surface-2: #1e1a14;
+    --line: #322a1e;
+    --text: #f6f1e6;
+    --muted: #a89f8d;
+    --shadow: rgba(0,0,0,0.55);
+    --accent: #d9a53a;
+    --accent-ink: #16110a;
+  }
+
+  *{ box-sizing: border-box; }
+
+  html, body{
+    margin:0;
+    padding:0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    height:100%;
+    overflow:hidden;
+  }
+
+  .headline, h1, .reveal-name, .answer-value, .btn-text{
+    font-family: 'Anton', 'Poppins', sans-serif;
+    letter-spacing: 0.01em;
+  }
+
+  /* ===== layout ===== */
+  .layout{
+    display:flex;
+    width:100%;
+    height:100vh;
+    height:100dvh;
+  }
+
+  /* ---- image column ---- */
+  .stage-col{
+    position:relative;
+    flex: 1 1 62%;
+    min-width: 0;
+    height:100%;
+    background: #000;
+  }
+
+  .stage{
+    position:absolute;
+    inset:0;
+    overflow:hidden;
+    cursor:pointer;
+    touch-action: pan-y;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+
+  .stage .frame{
+    position:relative;
+    overflow:hidden;
+    background-repeat:no-repeat;
+    background-position-y: center;
+    background-position-x: 0px;
+    transition: background-position 0.5s cubic-bezier(.4,0,.2,1), filter .2s ease;
+    will-change: background-position;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: auto;
+  }
+
+  .stage::after{
+    /* subtle vignette so overlaid UI stays legible without hiding the art */
+    content:"";
+    position:absolute;
+    inset:0;
+    pointer-events:none;
+    background: linear-gradient(to top, rgba(0,0,0,0.35), transparent 22%);
+  }
+
+  .tap-zone{
+    position:absolute;
+    top:0; bottom:0;
+    width:36%;
+    z-index:3;
+  }
+  .tap-zone.left{ left:0; }
+  .tap-zone.right{ right:0; }
+
+  .mini-progress{
+    position:absolute;
+    left:18px; right:18px; top:18px;
+    display:flex;
+    gap:6px;
+    z-index:4;
+  }
+  .mini-progress .seg{
+    flex:1;
+    height:4px;
+    border-radius:4px;
+    background: rgba(255,255,255,0.28);
+    overflow:hidden;
+  }
+  .mini-progress .seg i{
+    display:block;
+    height:100%;
+    width:0%;
+    background: var(--accent);
+    transition: width .25s ease, background .3s ease;
+  }
+  .mini-progress .seg.filled i{ width:100%; }
+
+  .mini-nav{
+    position:absolute;
+    bottom:18px;
+    right:18px;
+    z-index:4;
+    display:flex;
+    gap:8px;
+    opacity: 0.9;
+  }
+  .mini-nav button{
+    width:38px; height:38px;
+    border-radius:50%;
+    border: 1px solid rgba(255,255,255,0.25);
+    background: rgba(10,9,7,0.45);
+    backdrop-filter: blur(4px);
+    color:#fff;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    transition: background .15s ease, border-color .15s ease, opacity .15s ease;
+  }
+  .mini-nav button:hover{ background: rgba(10,9,7,0.7); border-color: var(--accent); }
+  .mini-nav button[disabled]{ opacity:0.3; pointer-events:none; }
+  .mini-nav svg{ width:16px; height:16px; }
+
+  /* ---- side panel column ---- */
+  .panel-col{
+    flex: 0 0 min(420px, 38%);
+    height:100%;
+    overflow-y:auto;
+    background: var(--surface);
+    border-left: 1px solid var(--line);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .panel-inner{
+    padding: 26px 26px 32px;
+    display:flex;
+    flex-direction:column;
+    min-height:100%;
+  }
+
+  .panel-header{
+    margin-bottom: 18px;
+  }
+
+  .eyebrow{
+    font-size: 11.5px;
+    font-weight:700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 6px;
+    transition: color .3s ease;
+  }
+
+  h1{
+    font-weight:400;
+    font-size: clamp(24px, 2.6vw, 30px);
+    line-height:1.05;
+    margin:0;
+    color:var(--text);
+    text-transform: uppercase;
+  }
+  h1 .amp{ color: var(--accent); transition: color .3s ease; }
+
+  /* day selector */
+  .day-select{
+    position:relative;
+    margin: 20px 0 18px;
+  }
+  .day-select select{
+    -webkit-appearance:none;
+    appearance:none;
+    width:100%;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-family:'Poppins', sans-serif;
+    font-size: 14.5px;
+    font-weight: 600;
+    padding: 13px 40px 13px 16px;
+    border-radius: 10px;
+    cursor:pointer;
+    outline:none;
+    transition: border-color .15s ease;
+  }
+  .day-select select:focus-visible{ border-color: var(--accent); }
+  .day-select::after{
+    content:"";
+    position:absolute;
+    right:16px; top:50%;
+    width:9px; height:9px;
+    border-right: 2px solid var(--muted);
+    border-bottom: 2px solid var(--muted);
+    transform: translateY(-65%) rotate(45deg);
+    pointer-events:none;
+  }
+  .day-select select option{ background: var(--surface-2); color: var(--text); }
+
+  /* progress + step */
+  .progress{
+    display:flex;
+    gap:6px;
+    margin: 4px 0 10px;
+  }
+  .progress .seg{
+    flex:1;
+    height:4px;
+    border-radius:4px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    overflow:hidden;
+  }
+  .progress .seg i{
+    display:block; height:100%; width:0%;
+    background: var(--accent);
+    transition: width .25s ease, background .3s ease;
+  }
+  .progress .seg.filled i{ width:100%; }
+
+  .step-label{
+    margin: 0 0 20px;
+    font-size: 13px;
+    font-weight:600;
+    color: var(--muted);
+  }
+  .step-label b{ color: var(--accent); font-weight:700; transition: color .3s ease; }
+
+  /* prompt (pre-reveal) */
+  .prompt{
+    background: var(--surface-2);
+    border: 1px dashed var(--line);
+    border-radius: 12px;
+    padding: 16px 16px;
+    font-size: 13.5px;
+    color: var(--muted);
+    line-height:1.5;
+  }
+  .prompt[hidden]{ display:none; }
+
+  /* reveal panel */
+  .reveal{ display:flex; flex-direction:column; gap:14px; }
+  .reveal[hidden]{ display:none; }
+
+  .reveal-day{
+    font-size: 12px;
+    font-weight:700;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    margin:0;
+    text-transform:uppercase;
+    transition: color .3s ease;
+  }
+  .reveal-name{
+    font-weight:400;
+    font-size: clamp(34px, 4vw, 46px);
+    line-height:0.95;
+    margin: -6px 0 0;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+  .reveal-book{
+    font-size: 13px;
+    font-weight:600;
+    color: var(--muted);
+    margin:0;
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+
+  .badge{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    align-self:flex-start;
+    background: var(--surface-2);
+    border: 1.5px solid var(--accent);
+    border-radius: 999px;
+    padding: 8px 16px;
+    transition: border-color .3s ease;
+  }
+  .badge-check{
+    width:18px; height:18px;
+    border-radius:50%;
+    background: var(--accent);
+    color: var(--accent-ink);
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
+    transition: background .3s ease;
+  }
+  .badge-check svg{ width:11px; height:11px; }
+  .badge-label{
+    font-size: 10.5px;
+    font-weight:700;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color: var(--muted);
+  }
+  .answer-value{
+    font-weight:400;
+    font-size: 17px;
+    text-transform:uppercase;
+    color: var(--text);
+  }
+
+  .info-block{
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px 16px;
+  }
+  .info-title{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size: 12px;
+    font-weight:700;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color: var(--accent);
+    margin: 0 0 10px;
+    transition: color .3s ease;
+  }
+  .info-title .dot{
+    width:20px; height:20px;
+    border-radius:50%;
+    background: var(--accent);
+    color: var(--accent-ink);
+    display:flex; align-items:center; justify-content:center;
+    font-size: 12px;
+    flex-shrink:0;
+    transition: background .3s ease;
+  }
+  .reveal ul{
+    margin:0; padding:0 0 0 18px;
+    font-size: 13.5px;
+    line-height:1.55;
+    color: var(--text);
+  }
+  .reveal ul li{ margin-bottom: 7px; }
+  .reveal ul li:last-child{ margin-bottom:0; }
+  .reveal p.story{
+    margin:0;
+    font-size: 13.5px;
+    line-height:1.6;
+    color: var(--text);
+  }
+
+  /* controls */
+  .controls{
+    display:flex;
+    gap:10px;
+    margin-top: auto;
+    padding-top: 22px;
+  }
+  .btn{
+    flex:1;
+    font-family:'Poppins', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 13px 18px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--text);
+    cursor:pointer;
+    transition: border-color .15s ease, background .15s ease, transform .1s ease;
+  }
+  .btn:active{ transform: scale(0.97); }
+  .btn.primary{
+    background: var(--accent);
+    color: var(--accent-ink);
+    border-color: var(--accent);
+    flex:1.4;
+  }
+  .btn:hover{ border-color: var(--accent); }
+  .btn[disabled]{ opacity:0.35; pointer-events:none; }
+
+  footer.hint{
+    margin-top: 14px;
+    font-size: 11.5px;
+    color: var(--muted);
+    text-align:center;
+  }
+
+  /* ===== responsive: stack on narrow screens ===== */
+  @media (max-width: 860px){
+    .layout{ flex-direction:column; }
+    .stage-col{ flex: 0 0 48vh; height:48vh; }
+    .panel-col{ flex: 1 1 auto; border-left:none; border-top: 1px solid var(--line); }
+  }
+  @media (max-width: 860px) and (orientation: landscape){
+    .layout{ flex-direction:row; }
+    .stage-col{ flex: 1 1 55%; height:100%; }
+    .panel-col{ flex: 0 0 45%; border-left: 1px solid var(--line); border-top:none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <div class="stage-col">
+    <div class="stage" id="stage">
+      <div class="frame" id="frame"></div>
+      <div class="tap-zone left" id="tapLeft"></div>
+      <div class="tap-zone right" id="tapRight"></div>
+      <div class="mini-progress" id="progress"></div>
+      <div class="mini-nav">
+        <button id="prevBtn2" aria-label="Previous clue">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </button>
+        <button id="nextBtn2" aria-label="Next clue">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <aside class="panel-col">
+    <div class="panel-inner">
+      <div class="panel-header">
+        <p class="eyebrow">A daily challenge</p>
+        <h1>Bible Person <span class="amp">of the Day</span></h1>
+      </div>
+
+      <div class="day-select">
+        <select id="daySelect" aria-label="Choose a day"></select>
+      </div>
+
+      <div class="progress" id="progressPanel"></div>
+      <p class="step-label" id="stepLabel">Clue <b>1</b> of 3</p>
+
+      <div class="prompt" id="promptBlock">
+        Study the three clues on the photo, then reveal the answer when you're ready to check your guess.
+      </div>
+
+      <div class="reveal" id="reveal" hidden>
+        <div>
+          <p class="reveal-day" id="revealDay">Day 1</p>
+          <h2 class="reveal-name" id="revealName">Boaz</h2>
+          <p class="reveal-book" id="revealBook">📖 Ruth 2–4</p>
+        </div>
+
+        <div class="badge">
+          <span class="badge-check">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          </span>
+          <span class="badge-label">Answer</span>
+          <span class="answer-value" id="revealAnswer">Boaz</span>
+        </div>
+
+        <div class="info-block">
+          <p class="info-title"><span class="dot">💡</span>Fun facts</p>
+          <ul id="revealFacts"></ul>
+        </div>
+
+        <div class="info-block">
+          <p class="info-title"><span class="dot">📜</span>Their story</p>
+          <p class="story" id="revealStory"></p>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button class="btn" id="prevBtn">Back</button>
+        <button class="btn primary" id="nextBtn">Next clue</button>
+      </div>
+
+      <footer class="hint">Tap the sides of the photo, swipe, or use the buttons to move through each clue.</footer>
+    </div>
+  </aside>
+</div>
+
+<script src="data/entries-001.js"></script>
+<script src="data/entries-002.js"></script>
+<script>
+  const ENTRIES = (window.BIBLE_ENTRIES || []).slice().sort(function(a,b){ return a.day - b.day; });
+
+  const daySelect = document.getElementById('daySelect');
+  const frame = document.getElementById('frame');
+  const stage = document.getElementById('stage');
+  const progress = document.getElementById('progress');
+  const progressPanel = document.getElementById('progressPanel');
+  const stepLabel = document.getElementById('stepLabel');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const prevBtn2 = document.getElementById('prevBtn2');
+  const nextBtn2 = document.getElementById('nextBtn2');
+  const tapLeft = document.getElementById('tapLeft');
+  const tapRight = document.getElementById('tapRight');
+  const promptBlock = document.getElementById('promptBlock');
+  const reveal = document.getElementById('reveal');
+  const revealDay = document.getElementById('revealDay');
+  const revealName = document.getElementById('revealName');
+  const revealBook = document.getElementById('revealBook');
+  const revealAnswer = document.getElementById('revealAnswer');
+  const revealFacts = document.getElementById('revealFacts');
+  const revealStory = document.getElementById('revealStory');
+
+  let dayIndex = 0;
+  let panelIndex = 0; // 0,1,2 = clues, 3 = answer
+  const PANELS = 4;
+
+  // build progress segments (mirrored: one set on the photo, one in the panel)
+  function buildSegs(container){
+    container.innerHTML = '';
+    for(let i=0;i<PANELS;i++){
+      const seg = document.createElement('div');
+      seg.className = 'seg';
+      const fill = document.createElement('i');
+      seg.appendChild(fill);
+      container.appendChild(seg);
+    }
+    return container.querySelectorAll('.seg');
+  }
+  const segsPhoto = buildSegs(progress);
+  const segsPanel = buildSegs(progressPanel);
+
+  // populate dropdown
+  ENTRIES.forEach((e, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = 'Day ' + e.day;
+    daySelect.appendChild(opt);
+  });
+
+  function applyAccent(color){
+    document.documentElement.style.setProperty('--accent', color);
+  }
+
+  // Keeps each clue panel crop at its true aspect ratio (no stretching,
+  // and never bleeding into the next panel): the frame itself is sized
+  // to fit exactly one panel inside the stage, like object-fit: contain.
+  function layoutFrame(){
+    const entry = ENTRIES[dayIndex];
+    const stageW = stage.clientWidth;
+    const stageH = stage.clientHeight;
+    const r = entry.ratio;
+
+    let fitW, fitH;
+    if (stageW / stageH > r) {
+      fitH = stageH;
+      fitW = stageH * r;
+    } else {
+      fitW = stageW;
+      fitH = stageW / r;
+    }
+
+    frame.style.width = fitW + 'px';
+    frame.style.height = fitH + 'px';
+    frame.style.backgroundSize = 'auto ' + fitH + 'px';
+    frame.style.backgroundPositionX = (-(panelIndex * fitW)) + 'px';
+  }
+
+  function render(){
+    const entry = ENTRIES[dayIndex];
+    applyAccent(entry.color);
+    frame.style.backgroundImage = "url('" + entry.src + "')";
+    layoutFrame();
+
+    const isAnswer = panelIndex === PANELS - 1;
+
+    [segsPhoto, segsPanel].forEach(segs => {
+      segs.forEach((seg, i) => seg.classList.toggle('filled', i <= panelIndex));
+    });
+
+    if(panelIndex < PANELS - 1){
+      stepLabel.innerHTML = 'Clue <b>' + (panelIndex + 1) + '</b> of 3';
+    } else {
+      stepLabel.innerHTML = '<b>Answer revealed</b>';
+    }
+
+    prevBtn.disabled = panelIndex === 0;
+    prevBtn2.disabled = panelIndex === 0;
+    nextBtn.textContent = panelIndex === PANELS - 1 ? 'Restart' : (panelIndex === PANELS - 2 ? 'Reveal answer' : 'Next clue');
+
+    promptBlock.hidden = isAnswer;
+    reveal.hidden = !isAnswer;
+
+    if(isAnswer){
+      revealDay.textContent = 'Day ' + entry.day;
+      revealName.textContent = entry.name;
+      revealBook.textContent = '📖 ' + entry.book;
+      revealAnswer.textContent = entry.answer;
+      revealFacts.innerHTML = '';
+      entry.facts.forEach(fact => {
+        const li = document.createElement('li');
+        li.textContent = fact;
+        revealFacts.appendChild(li);
+      });
+      revealStory.textContent = entry.story;
+    }
+  }
+
+  function goNext(){
+    if(panelIndex < PANELS - 1){
+      panelIndex++;
+    } else {
+      panelIndex = 0;
+    }
+    render();
+  }
+
+  function goPrev(){
+    if(panelIndex > 0){
+      panelIndex--;
+      render();
+    }
+  }
+
+  function setDay(i){
+    dayIndex = i;
+    panelIndex = 0;
+    daySelect.value = i;
+    render();
+  }
+
+  daySelect.addEventListener('change', e => setDay(parseInt(e.target.value, 10)));
+  nextBtn.addEventListener('click', goNext);
+  prevBtn.addEventListener('click', goPrev);
+  nextBtn2.addEventListener('click', goNext);
+  prevBtn2.addEventListener('click', goPrev);
+  tapRight.addEventListener('click', goNext);
+  tapLeft.addEventListener('click', goPrev);
+
+  document.addEventListener('keydown', e => {
+    if(e.key === 'ArrowRight') goNext();
+    if(e.key === 'ArrowLeft') goPrev();
+  });
+
+  let touchStartX = null;
+  stage.addEventListener('touchstart', e => {
+    touchStartX = e.touches[0].clientX;
+  }, {passive:true});
+  stage.addEventListener('touchend', e => {
+    if(touchStartX === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if(Math.abs(dx) > 40){
+      if(dx < 0) goNext(); else goPrev();
+    }
+    touchStartX = null;
+  }, {passive:true});
+
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(layoutFrame, 80);
+  });
+
+  setDay(0);
+</script>
+
+</body>
+</html>
