@@ -217,6 +217,7 @@
     pointer-events:none;
   }
   .day-select select option{ background: var(--surface-2); color: var(--text); }
+  .testament-select{ margin-bottom: 10px; }
 
   /* progress + step */
   .progress{
@@ -568,6 +569,13 @@
         <h1 id="titleTrigger">Bible Person <span class="amp">of the Day</span></h1>
       </div>
 
+      <div class="day-select testament-select">
+        <select id="testamentSelect" aria-label="Choose a testament">
+          <option value="ot">Old Testament</option>
+          <option value="nt">New Testament</option>
+        </select>
+      </div>
+
       <div class="day-select">
         <select id="daySelect" aria-label="Choose a day"></select>
       </div>
@@ -651,10 +659,12 @@
 <script src="data/entries-008.js"></script>
 <script src="data/entries-009.js"></script>
 <script src="data/entries-010.js"></script>
+<script src="data/entries-011.js"></script>
 <script>
   const ENTRIES = (window.BIBLE_ENTRIES || []).slice().sort(function(a,b){ return a.day - b.day; });
 
   const daySelect = document.getElementById('daySelect');
+  const testamentSelect = document.getElementById('testamentSelect');
   const frame = document.getElementById('frame');
   const stage = document.getElementById('stage');
   const progress = document.getElementById('progress');
@@ -688,6 +698,11 @@
   let dayIndex = 0;
   let panelIndex = 0; // 0,1,2 = clues, 3 = answer
   const PANELS = 4;
+
+  // Days 1-100 are Old Testament people, day 101+ are New Testament people.
+  const TESTAMENT_SPLIT_DAY = 100;
+  function testamentOf(day){ return day <= TESTAMENT_SPLIT_DAY ? 'ot' : 'nt'; }
+  let currentTestament = 'ot';
 
   /* ===== day-lock system ===== =
      Day 1 is always unlocked. All other days start locked.
@@ -733,11 +748,13 @@
   const segsPhoto = buildSegs(progress);
   const segsPanel = buildSegs(progressPanel);
 
-  // populate dropdown, reflecting which days are unlocked
+  // populate dropdown, reflecting which days are unlocked and the
+  // currently selected testament (only days from that testament are listed)
   function buildDaySelect(){
     const prevValue = daySelect.value;
     daySelect.innerHTML = '';
     ENTRIES.forEach((e, i) => {
+      if(testamentOf(e.day) !== currentTestament) return;
       const opt = document.createElement('option');
       opt.value = i;
       const unlocked = isUnlocked(e.day);
@@ -746,7 +763,12 @@
       if(!unlocked) opt.classList.add('locked-opt');
       daySelect.appendChild(opt);
     });
-    if(prevValue !== '') daySelect.value = prevValue;
+    // keep previous selection only if it still belongs to the current testament
+    if(prevValue !== '' && ENTRIES[prevValue] && testamentOf(ENTRIES[prevValue].day) === currentTestament){
+      daySelect.value = prevValue;
+    } else if(daySelect.options.length){
+      daySelect.selectedIndex = 0;
+    }
   }
   buildDaySelect();
 
@@ -847,6 +869,20 @@
     render();
   }
 
+  // switch which testament's days are shown in the dropdown, and jump to
+  // the first unlocked day of that testament (if any are unlocked yet)
+  function switchTestament(t){
+    currentTestament = t;
+    buildDaySelect();
+    const firstUnlockedIndex = ENTRIES.findIndex(e => testamentOf(e.day) === currentTestament && isUnlocked(e.day));
+    if(firstUnlockedIndex !== -1){
+      setDay(firstUnlockedIndex);
+    }
+    // if nothing in this testament is unlocked yet, leave the stage as-is;
+    // the dropdown will show the (locked) days for the user to unlock.
+  }
+
+  testamentSelect.addEventListener('change', e => switchTestament(e.target.value));
   daySelect.addEventListener('change', e => setDay(parseInt(e.target.value, 10)));
   nextBtn.addEventListener('click', goNext);
   prevBtn.addEventListener('click', goPrev);
